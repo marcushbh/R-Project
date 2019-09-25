@@ -1,0 +1,215 @@
+#install packages#
+install.packages("aod")
+install.packages("ggplot2")
+install.packages("car")
+install.packages("Hmisc")
+install.packages("rms")
+install.packages("QuantPsyc")
+install.packages("InformationValue")
+install.packages("ResourceSelection")
+install.packages("Pseudo")
+
+#Activate packages#
+library(aod)
+library(ggplot2)
+library(car)
+library(Hmisc)
+library(rms)
+library(ResourceSelection)
+library(QuantPsyc)
+library(InformationValue)
+
+#load and view data
+
+pregdata<-read.csv("Retailer Pregnant Data-1.csv",header = TRUE)
+View(pregdata)
+str(pregdata)
+summary(pregdata)
+
+#Recode data
+pregdata$Male <- recode(pregdata$Implied.Gender,"'M'=1;'F'=0;else=0")
+pregdata$Female <- recode(pregdata$Implied.Gender,"'F'=1;'M'=0;else=0")
+pregdata$Home<-recode(pregdata$Home.Apt..PO.Box,"'H'=1;else=0")
+pregdata$Apt<-recode(pregdata$Home.Apt..PO.Box,"'A'=1;else=0")
+
+
+#preliminary analysis to determine which variables should be included/excluded from the analysis#
+PD<-subset(pregdata, select = -c(Implied.Gender, Home.Apt..PO.Box, X))
+str(PD)
+
+#crosstabs for Loan_Status and predictors#
+table1<- xtabs(~PREGNANT+Pregnancy.Test,data=PD)
+print(table1)
+summary(table1)
+
+table2<- xtabs(~PREGNANT+Birth.Control,data=PD)
+print(table2)
+summary(table2)
+
+table3<- xtabs(~PREGNANT+Feminine.Hygiene, data=PD)
+print(table3)
+summary(table3)
+
+table4<- xtabs(~PREGNANT+Folic.Acid,data=PD)
+print(table4)
+summary(table4)
+
+table5<- xtabs(~PREGNANT+Prenatal.Vitamins,data=PD)
+print(table5)
+summary(table5)
+
+table6<- xtabs(~PREGNANT+Prenatal.Yoga, data=PD)
+print(table6)
+summary(table6)
+
+table7<- xtabs(~PREGNANT+Body.Pillow, data=PD)
+print(table7)
+summary(table7)
+
+table8<- xtabs(~PREGNANT+Ginger.Ale, data=PD)
+print(table8)
+summary(table8)
+
+table9<- xtabs(~PREGNANT+Sea.Bands, data=PD)
+print(table9)
+summary(table9)
+
+table10<- xtabs(~PREGNANT+Stopped.buying.ciggies, data=PD)
+print(table10)
+summary(table10)
+
+table11<- xtabs(~PREGNANT+Cigarettes, data=PD)
+print(table11)
+summary(table11)
+
+table12<- xtabs(~PREGNANT+Smoking.Cessation, data=PD)
+print(table12)
+summary(table12)
+
+table11<- xtabs(~PREGNANT+Stopped.buying.wine, data=PD)
+print(table11)
+summary(table11)
+
+table12<- xtabs(~PREGNANT+Wine, data=PD)
+print(table12)
+summary(table12)
+
+table13<- xtabs(~PREGNANT+Maternity.Clothes,data=PD)
+print(table13)
+summary(table13)
+
+table14<- xtabs(~PREGNANT+Male, data=PD)
+print(table14)
+summary(table14)
+
+table15<- xtabs(~PREGNANT+Female, data=PD)
+print(table15)
+summary(table15)
+
+table16<- xtabs(~PREGNANT+Home, data=PD)
+print(table16)
+summary(table16)
+
+table17<- xtabs(~PREGNANT+Apt, data=PD)
+print(table17)
+summary(table17)
+
+
+#correlation matrix#
+rcorr(as.matrix(PD))
+
+#Logistic Regression for Model w/No Predictors#
+mylogitbase<-glm(PREGNANT~1,data = PD, family = "binomial")
+summary(mylogitbase)
+
+#Wald Test for Base Model#
+wald.test(b = coef(mylogitbase), Sigma = vcov(mylogitbase), Terms = 1)
+
+#Classification Table for Base Model#
+ClassLog(mylogitbase, PD$PREGNANT, cut = .5)
+
+#a model including all the predictors#
+mylogit<-glm(PREGNANT~Pregnancy.Test+Prenatal.Yoga+Body.Pillow+Ginger.Ale+Sea.Bands+Stopped.buying.ciggies+Cigarettes+
+               Smoking.Cessation+Stopped.buying.wine+Wine+Maternity.Clothes+Male+Female+Birth.Control+Feminine.Hygiene+Folic.Acid+Prenatal.Vitamins+Home+Apt, 
+             data = PD, family = "binomial")
+summary(mylogit)
+ClassLog(mylogit, PD$PREGNANT, cut = .5)
+
+#Eliminating the non significant predictor#
+mylogit<-glm(PREGNANT~Pregnancy.Test+Prenatal.Yoga+Ginger.Ale+Stopped.buying.ciggies+Cigarettes+
+               Smoking.Cessation+Stopped.buying.wine+Wine+Maternity.Clothes+Birth.Control+Feminine.Hygiene+Folic.Acid+Prenatal.Vitamins,
+             data = PD, family = "binomial")
+summary(mylogit)
+ClassLog(mylogit, PD$PREGNANT, cut = .5)
+
+
+#Wald Tests for Logistic Regression Model#
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 1)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 2)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 3)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 4)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 5)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 6)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 7)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 8)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 9)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 10)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 11)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 12)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 13)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 14)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 15)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 16)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 17)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 18)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 19)
+wald.test(b = coef(mylogit), Sigma = vcov(mylogit), Terms = 20)
+
+
+#create odds-ratios#
+exp(coef(mylogit))
+
+#odds ratio and 95% CI#
+exp(cbind(OR = coef(mylogit), confint(mylogit)))
+
+#Hosmer-Lemeshow Goodness (Badness) of Fit Test, g sets the n of steps#
+hl<-hoslem.test(PD$PREGNANT, fitted(mylogit), g=10)
+hl
+cbind(hl$expected, hl$observed)
+
+#compare fit of model with predictors to fit of model with no predictor#
+with(mylogit, null.deviance - deviance)
+
+with(mylogit, df.null - df.residual)
+
+with(mylogit, pchisq(null.deviance - deviance, df.null - df.residual,lower.tail = FALSE))
+
+#Pseudo R-squared values#
+install.packages("DescTools")
+library("DescTools")
+
+PseudoR2(mylogit, which = "all")
+
+#	Create a classification table
+ClassLog(mylogit, PD$PREGNANT, cut = .5)
+
+#Create individual probabilities
+predict(mylogit, type="response")
+PD$PredProb<-predict(mylogit, type="response")
+
+trn_pred <- ifelse(predict(mylogit, type = "response") > 0.5, "Yes", "No")
+trn_pred
+
+PD$GroupMembership<-trn_pred
+
+#Create a ROC Curve
+predicted <- plogis(predict(mylogit, PD))
+plotROC(PD$PREGNANT, predicted)
+optCutOff <- optimalCutoff(PD$PREGNANT, predicted) 
+optCutOff
+
+#	Create a classification table using the new cutoff value
+ClassLog(mylogit,PD$PREGNANT, cut = 0.4699923)
+
+
+
