@@ -1,0 +1,220 @@
+
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(ggplot2)
+
+#library(InformationValue)
+
+##Read Data
+fundraising.df <- read.csv("Fundraising.csv")
+fundraising.df <- fundraising.df[ , -c(1, 2, 24)]  # Drop ID and zip code columns.
+
+# Partition data
+set.seed(12345)
+# Seperate the donors and nondonors data in order to get a training set with equal ratio of donors and nondonors
+donors.df <- fundraising.df[fundraising.df$TARGET_B==1,]
+nondonors.df <- fundraising.df[fundraising.df$TARGET_B==0,]
+
+##Traning Set
+donors.train.index <- sample(row.names(donors.df),0.6*dim(donors.df)[1])
+donors.train.df <- donors.df[donors.train.index,]
+
+nondonors.train.index <- sample(row.names(nondonors.df),0.6*dim(nondonors.df)[1])
+nondonors.train.df <- nondonors.df[nondonors.train.index,]
+
+train.df <- rbind.data.frame(donors.train.df,nondonors.train.df)
+train.df<- train.df[order(as.numeric(row.names(train.df))),]
+##Validation Set
+donors.valid.index <- setdiff(row.names(donors.df),donors.train.index)
+donors.valid.df <- donors.df[donors.valid.index,]
+
+nondonors.valid.index <- setdiff(row.names(nondonors.df),nondonors.train.index)
+nondonors.valid.df <- nondonors.df[nondonors.valid.index,]
+
+valid.df <- rbind.data.frame(donors.valid.df,nondonors.valid.df)
+valid.df<- valid.df[order(as.numeric(row.names(valid.df))),]
+
+#---------------------------------------------------------- Classification Tree---------------------------------------------#
+default.ct <- rpart(TARGET_B ~ ., data = train.df, control=rpart.control(maxdepth = 10),method = "class")
+# plot tree
+prp(default.ct, type = 1, extra = 1, under = TRUE, split.font = 1, varlen = -10)
+
+
+
+#### Figure 9.10
+
+deeper.ct <- rpart(TARGET_B ~ ., data = train.df, method = "class", cp = 0, minsplit = 1)
+# count number of leaves
+length(deeper.ct$frame$var[deeper.ct$frame$var == "<leaf>"])
+# plot tree
+prp(deeper.ct, type = 1, extra = 1, under = TRUE, split.font = 1, varlen = -10, 
+    box.col=ifelse(deeper.ct$frame$var == "<leaf>", 'gray', 'white')) 
+
+
+
+#### Trainning Set
+# Deeper Tree
+# set argument type = "class" in predict() to generate predicted class membership.
+default.ct.point.pred.train <- predict(deeper.ct,train.df,type = "class")
+# generate confusion matrix for training data
+confusionMatrix(default.ct.point.pred.train, as.factor(train.df$TARGET_B))
+
+# Normal Tree
+default.ct.point.pred.train <- predict(default.ct,train.df,type = "class")
+# generate confusion matrix for training data
+confusionMatrix(default.ct.point.pred.train, as.factor(train.df$TARGET_B))
+
+
+
+####Prune Deeper Tree
+cv.ct <- rpart(TARGET_B ~ ., data = train.df, method = "class", cp = 0.00001, minsplit = 1, xval = 5)  # minsplit is the minimum number of observations in a node for a split to be attempted. xval is number K of folds in a K-fold cross-validation.
+printcp(cv.ct)  # Print out the cp table of cross-validation errors. The R-squared for a regression tree is 1 minus rel error. xerror (or relative cross-validation error where "x" stands for "cross") is a scaled version of overall average of the 5 out-of-sample errors across the 5 folds.
+pruned.ct <- prune(cv.ct, cp = 0.00783476)  #0.00783476
+prp(pruned.ct, type = 1, extra = 1, under = TRUE, split.font = 1, varlen = -10, 
+    box.col=ifelse(pruned.ct$frame$var == "<leaf>", 'gray', 'white')) 
+
+####Prune Normal Tree
+default.ct <- rpart(TARGET_B ~ ., data = train.df, control=rpart.control(maxdepth = 10),method = "class")
+printcp(default.ct)  # Print out the cp table of cross-validation errors. The R-squared for a regression tree is 1 minus rel error. xerror (or relative cross-validation error where "x" stands for "cross") is a scaled version of overall average of the 5 out-of-sample errors across the 5 folds.
+pruned.ct <- prune(cv.ct, cp = 0.01)  #0.00783476
+prp(pruned.ct, type = 1, extra = 1, under = TRUE, split.font = 1, varlen = -10, 
+    box.col=ifelse(pruned.ct$frame$var == "<leaf>", 'gray', 'white')) 
+
+
+#### Train
+# classify records in the training data.
+# set argument type = "class" in predict() to generate predicted class membership.
+default.ct.point.pred.train <- predict(cv.ct,train.df,type = "class")
+# generate confusion matrix for training data
+
+
+##Overfitting in this case
+confusionMatrix(default.ct.point.pred.train, as.factor(train.df$TARGET_B))
+
+####Smaller Tree
+default.ct.point.pred.train <- predict(default.ct,train.df,type = "class")
+# generate confusion matrix for training data
+confusionMatrix(default.ct.point.pred.train, as.factor(train.df$TARGET_B))
+
+
+
+#Calculate net profit 
+table<-table(factor(train.df$TARGET_B),factor(default.ct.point.pred.train ))
+df<-as.data.frame(table)
+pred.actual.df<-data.frame(default.ct.point.pred.train,train.df$TARGET_B)
+a<-df[3,3]
+b<-df[4,3]
+netprofit1_train<-(a/0.53 + b/9.8)*(-0.68) + (b/9.8)*13
+
+
+### Valid
+default.ct.point.pred.val <- predict(default.ct,valid.df,type = "class")
+prob <- predict(default.ct,valid.df)
+prob<-as.data.frame(prob)
+colnames(prob)[1] <- c("Non") 
+colnames(prob)[2] <- c("Donor") 
+confusionMatrix(default.ct.point.pred.val, as.factor(valid.df$TARGET_B))
+
+#Calculate net profit 
+table<-table(factor(valid.df$TARGET_B),factor(default.ct.point.pred.val))
+df<-as.data.frame(table)
+pred.actual.df<-data.frame(default.ct.point.pred.val,valid.df$TARGET_B,prob$Donor)
+pred.actual.df<-pred.actual.df[order(pred.actual.df[,3],decreasing = T),]
+a<-df[3,3]
+b<-df[4,3]
+netprofit1_valid<-(a/0.53 + b/9.8)*(-0.68) + (b/9.8)*13
+
+##Plot Net Profit
+
+netprofit.valid<-subset(pred.actual.df,default.ct.point.pred.val==1)
+netprofit.valid$net.profit<-ifelse(netprofit.valid$valid.df.TARGET_B == 1, (13-0.68)/9.8,(0-0.68)/0.53)
+netprofit1.valid<-sum(netprofit.valid$net.profit)
+
+#———————————————————————————————————————————————Logistic Regression—————————————————————————————————————————————————————————#
+
+## Logistic Regession with train set
+mylogit <- glm(TARGET_B ~ ., data = train.df, family = "binomial")
+#Create a ROC Curve (The library of InformationValue will mask the confusion matrix in caret package.
+#Therefore, I rerun the whole code after getting the optimmal cutoff value which is 0.5160683. 
+#In this way,I can get the confusion matrix.
+
+#pred<-predict(mylogit,train.df,type = "response")
+#plotROC(train.df$TARGET_B, pred)
+# optCutOff <- optimalCutoff(train.df$TARGET_B, pred) 
+# optCutOff
+
+classification_logit <- ifelse(predict(mylogit,train.df,type = "response") > 0.5160683, "1", "0")
+confusionMatrix(as.factor(as.numeric(classification_logit)),as.factor(train.df$TARGET_B))
+
+#########################TrainningSet
+prediction<-predict(mylogit,train.df,type = "response")
+pred<-factor(prediction>0.5160683,levels=c(FALSE,TRUE),labels=c("0","1"))
+table<-table(factor(train.df$TARGET_B),factor(pred))
+df<-as.data.frame(table)
+pred.actual.df<-data.frame(pred,train.df$TARGET_B)
+a<-df[3,3]
+b<-df[4,3]
+netprofit2_train<-(a/0.53 + b/9.8)*(-0.68) + (b/9.8)*13
+############################
+
+## Validset
+mylogit <- glm(TARGET_B ~ ., data = train.df, family = "binomial")
+classification_logit <- ifelse(predict(mylogit,valid.df,type = "response") > 0.5160683, "1", "0")
+confusionMatrix(as.factor(as.numeric(classification_logit)),as.factor(valid.df$TARGET_B))
+
+###########
+#########################
+prediction2<-predict(mylogit,valid.df,type = "response")
+pred<-factor(prediction2>0.5160683,levels=c(FALSE,TRUE),labels=c("0","1"))
+table<-table(factor(valid.df$TARGET_B),factor(pred))
+df<-as.data.frame(table)
+pred.actual.df<-data.frame(pred,valid.df$TARGET_B,prediction2)
+pred.actual.df<-pred.actual.df[order(prediction2,decreasing = T),]
+a<-df[3,3]
+b<-df[4,3]
+netprofit2_valid<-(a/0.53 + b/9.8)*(-0.68) + (b/9.8)*13
+##
+##plot netprofit
+netprofit.logit.valid<-subset(pred.actual.df,pred==1)
+netprofit.logit.valid$net.profit<-ifelse(netprofit.logit.valid$valid.df.TARGET_B == 1, (13-0.68)/9.8,(0-0.68)/0.53)
+netprofit2.valid<-sum(netprofit.logit.valid$net.profit)
+##########
+
+##
+logit<-data.frame(c(1:607),cumsum(netprofit.logit.valid$net.profit))
+ct<-data.frame(c(1:799),cumsum(netprofit.valid$net.profit))
+logit$data <- 'logit'
+ct$data <- 'ct'
+colnames(logit)[1] <- "Mails"
+colnames(logit)[2] <- "Cumulative"
+colnames(ct)[1] <- "Mails"
+colnames(ct)[2] <- "Cumulative"
+plot_bind <- rbind.data.frame(logit, ct)
+
+
+##
+ggplot(plot_bind, aes(x = Mails, y = Cumulative))+
+  geom_line(aes(color = data))+
+  scale_x_continuous(name="Mails") +
+  scale_y_continuous(name="Net Profit") + 
+  ggtitle("Logit vs. CT")+
+  theme_bw()
+
+#########-----------------Question 6---------------------------#############
+library(plyr)
+future<-read.csv("FutureFundraising.csv")
+future<-future[,-c(1,2,24)]
+prediction<-predict(mylogit,future,type = "response")
+pred.class<-factor(prediction>0.5136088,levels=c(FALSE,TRUE),labels=c("0","1"))
+future[,22]<-prediction
+future[,23]<-pred.class
+colnames(future)[22] <- c("Probability") 
+colnames(future)[23] <- c("Donors") 
+future<- future[order(prediction,decreasing = T),]
+number<-count(future,"Donors")
+##number=1066
+#max.profit<-number[2,2]*(13-0.68) - number[1,2]*0.68
+##profit = 13133.12
+
+
