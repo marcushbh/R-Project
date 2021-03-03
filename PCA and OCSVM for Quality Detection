@@ -24,7 +24,7 @@ isolated1<- read.csv("Feb.csv",header = TRUE)
 isolated1$comment[isolated1$comment == "1"]<- "FALSE"
 isolated1$comment[isolated1$comment == "0"]<- "TRUE"
 as.numeric(as.factor(isolated1$max_ActStrCsh))
-#actstrcash char 有问题
+#actstrcash char
 isolated1$max_ActPrsHldHydMax<-as.numeric(as.factor(isolated1$max_ActPrsHldHydMax))
 isolated1$max_ActStrCsh<-as.numeric(as.factor(isolated1$max_ActStrCsh))
 isolated1$max_ActPrsXfrHyd<-as.numeric(as.factor(isolated1$max_ActPrsXfrHyd))
