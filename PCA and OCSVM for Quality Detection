@@ -1,0 +1,88 @@
+#Connect Data Source
+library(RODBC)
+conn130=RODBC::odbcConnect("Local_Sql_Sever",uid="",pwd="",case="tolower")
+t<-Sys.time()
+time <- format(t, "%H:%M")
+date<-Sys.Date()
+#sqlstr1<-paste("select * from InjectionMold27 where start_time1 > ","'",date, time,"'",sep=" ")
+#sqlstr1<-paste("select * from InjectionMold27 where start_time1 between '2020-12-09 03:28' and '2020-12-09 03:30'")
+sqlstr1<-paste("select TOP 1 * from InjectionMold27 order by start_time1 desc")
+test<-sqlQuery(conn130,sqlstr1)
+
+write.csv(test,file="test1")
+
+c<-read.csv("test1",header = T)
+c<-c[,5:36]
+
+
+#Run Model (Without recurring learning)
+#OCSVM
+library(e1071)
+library(caret)
+isolated1<- read.csv("Feb.csv",header = TRUE)
+
+isolated1$comment[isolated1$comment == "1"]<- "FALSE"
+isolated1$comment[isolated1$comment == "0"]<- "TRUE"
+as.numeric(as.factor(isolated1$max_ActStrCsh))
+#actstrcash char 有问题
+isolated1$max_ActPrsHldHydMax<-as.numeric(as.factor(isolated1$max_ActPrsHldHydMax))
+isolated1$max_ActStrCsh<-as.numeric(as.factor(isolated1$max_ActStrCsh))
+isolated1$max_ActPrsXfrHyd<-as.numeric(as.factor(isolated1$max_ActPrsXfrHyd))
+isolated1$avg_ActTmpBrlZn1<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn1))
+isolated1$avg_ActTmpBrlZn2<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn2))
+isolated1$avg_ActTmpBrlZn3<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn3))
+isolated1$avg_ActTmpBrlZn4<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn4))
+isolated1$avg_ActTmpBrlZn5<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn5))
+isolated1$avg_ActTmpBrlZn6<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn6))
+isolated1$avg_ActTmpBrlZn7<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn7))
+isolated1$avg_ActTmpBrlZn9<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn9))
+
+isolated1<-isolated1[99:421,]
+
+
+km_pre <- preProcess(isolated1[,c(4:35)], method=c("center", "scale"))
+norm1 <- predict(km_pre, isolated1[,c(4:35)])
+
+norm1<-cbind(isolated1$comment,norm1)
+trainPositive<-subset(norm1,isolated1$comment=="TRUE")
+testnegative<-subset(norm1,isolated1$comment=="FALSE")
+inTrain<-createDataPartition(1:nrow(trainPositive),p=0.6,list=FALSE)
+
+
+trainpredictors<-trainPositive[inTrain,2:33]
+pca<-preProcess(x=trainpredictors,method = "pca",pcacomp = 3)
+trainpredictors<-predict(pca,trainpredictors)
+trainLabels<-trainPositive[inTrain,1]
+
+c<-predict(pca,c)
+#Model Building
+svm.model<-svm(trainpredictors,y=NULL,
+               type='one-classification',
+               nu=0.16,
+               kernel="radial")
+#Fit Model to data and predict
+svm.predtrain<-predict(svm.model,c)
+
+#Result (1 Defective,0  not defective)
+Start_Time<-test[1,2]
+End_Time<-test[1,3]
+Alert<-ifelse(svm.predtrain=="TRUE",1,0)
+
+w<-data.frame(Alert)
+
+#Connect Database and upload signal
+library("odbc")
+library("DBI")
+conn179=RODBC::odbcConnect("",uid="",pwd="",case="tolower")
+con <- DBI::dbConnect(odbc::odbc(), 
+                      Driver = "SQL Server", 
+                      Server = "10.86.90.179", 
+                      Database = "Mirror", 
+                      Trusted_Connection = "True")
+
+odbcListObjects(con)
+odbcListObjects(con, catalog="Mirror", schema="dbo")
+odbcListObjectTypes(con)
+
+sqlstr2<-paste("INSERT INTO KM27Defective (Start_Time,End_Time,Alert) VALUES ('",Start_Time,"','",End_Time,"',",Alert,")",sep="")
+dbExecute(con, sqlstr2)
