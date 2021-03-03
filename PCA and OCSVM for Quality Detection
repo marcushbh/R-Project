@@ -76,7 +76,7 @@ library("DBI")
 conn179=RODBC::odbcConnect("Local_Sql_Server179",uid="",pwd="",case="tolower")
 con <- DBI::dbConnect(odbc::odbc(), 
                       Driver = "SQL Server", 
-                      Server = "10.86.90.179", 
+                      Server = "ipaddress", 
                       Database = "Mirror", 
                       Trusted_Connection = "True")
 
