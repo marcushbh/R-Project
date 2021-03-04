@@ -1,3 +1,5 @@
+#setwd("E:/Rjobs/R/Sever Job")
+
 #Connect Data Source
 library(RODBC)
 conn130=RODBC::odbcConnect("Local_Sql_Sever130",uid="",pwd="",case="tolower")
@@ -12,7 +14,7 @@ test<-sqlQuery(conn130,sqlstr1)
 write.csv(test,file="test1")
 
 c<-read.csv("test1",header = T)
-c<-c[,5:36]
+c<-c[,c(5:28)]
 
 
 #Run Model (Without recurring learning)
@@ -20,28 +22,25 @@ c<-c[,5:36]
 library(e1071)
 library(caret)
 isolated1<- read.csv("Feb.csv",header = TRUE)
-
+isolated1<-isolated1[99:421,1:27]
 isolated1$comment[isolated1$comment == "1"]<- "FALSE"
 isolated1$comment[isolated1$comment == "0"]<- "TRUE"
-as.numeric(as.factor(isolated1$max_ActStrCsh))
-#actstrcash char
-isolated1$max_ActPrsHldHydMax<-as.numeric(as.factor(isolated1$max_ActPrsHldHydMax))
-isolated1$max_ActStrCsh<-as.numeric(as.factor(isolated1$max_ActStrCsh))
-isolated1$max_ActPrsXfrHyd<-as.numeric(as.factor(isolated1$max_ActPrsXfrHyd))
-isolated1$avg_ActTmpBrlZn1<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn1))
-isolated1$avg_ActTmpBrlZn2<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn2))
-isolated1$avg_ActTmpBrlZn3<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn3))
-isolated1$avg_ActTmpBrlZn4<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn4))
-isolated1$avg_ActTmpBrlZn5<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn5))
-isolated1$avg_ActTmpBrlZn6<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn6))
-isolated1$avg_ActTmpBrlZn7<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn7))
-isolated1$avg_ActTmpBrlZn9<-as.numeric(as.factor(isolated1$avg_ActTmpBrlZn9))
 
-isolated1<-isolated1[99:421,]
+#actstrcash char 
+isolated1$max_ActPrsHldHydMax<-as.numeric(isolated1$max_ActPrsHldHydMax)
+isolated1$max_ActStrCsh<-as.numeric(isolated1$max_ActStrCsh)
+isolated1$max_ActPrsXfrHyd<-as.numeric(isolated1$max_ActPrsXfrHyd)
 
 
-km_pre <- preProcess(isolated1[,c(4:35)], method=c("center", "scale"))
-norm1 <- predict(km_pre, isolated1[,c(4:35)])
+isolated2<-rbind(isolated1[,4:27],c)
+isolated2<- data.frame(lapply(isolated2, as.numeric))
+
+km_pre <- preProcess(isolated2, method=c("center", "scale"))
+norm1 <- predict(km_pre, isolated2)
+
+c<-norm1[324,]
+norm1 <- norm1[1:323,]
+
 
 norm1<-cbind(isolated1$comment,norm1)
 trainPositive<-subset(norm1,isolated1$comment=="TRUE")
@@ -49,7 +48,7 @@ testnegative<-subset(norm1,isolated1$comment=="FALSE")
 inTrain<-createDataPartition(1:nrow(trainPositive),p=0.6,list=FALSE)
 
 
-trainpredictors<-trainPositive[inTrain,2:33]
+trainpredictors<-trainPositive[inTrain,2:25]
 pca<-preProcess(x=trainpredictors,method = "pca",pcacomp = 3)
 trainpredictors<-predict(pca,trainpredictors)
 trainLabels<-trainPositive[inTrain,1]
@@ -58,7 +57,7 @@ c<-predict(pca,c)
 #Model Building
 svm.model<-svm(trainpredictors,y=NULL,
                type='one-classification',
-               nu=0.16,
+               nu=0.03,
                kernel="radial")
 #Fit Model to data and predict
 svm.predtrain<-predict(svm.model,c)
@@ -66,9 +65,9 @@ svm.predtrain<-predict(svm.model,c)
 #Result (1 Defective,0  not defective)
 Start_Time<-test[1,2]
 End_Time<-test[1,3]
-Alert<-ifelse(svm.predtrain=="TRUE",1,0)
+Alert<-ifelse(svm.predtrain=="TRUE",0,1)
 
-w<-data.frame(Alert)
+
 
 #Connect Database and upload signal
 library("odbc")
@@ -76,7 +75,7 @@ library("DBI")
 conn179=RODBC::odbcConnect("Local_Sql_Server179",uid="",pwd="",case="tolower")
 con <- DBI::dbConnect(odbc::odbc(), 
                       Driver = "SQL Server", 
-                      Server = "ipaddress", 
+                      Server = "IP Address", 
                       Database = "Mirror", 
                       Trusted_Connection = "True")
 
